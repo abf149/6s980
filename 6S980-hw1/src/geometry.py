@@ -1,5 +1,5 @@
 from jaxtyping import Float
-from torch import Tensor
+from torch import Tensor, cat, inverse, matmul, ones, zeros
 
 
 def homogenize_points(
@@ -7,7 +7,11 @@ def homogenize_points(
 ) -> Float[Tensor, "*batch dim+1"]:
     """Turn n-dimensional points into (n+1)-dimensional homogeneous points."""
 
-    raise NotImplementedError("This is your homework.")
+    # Homogenous points require fourth coordinate == 1 to allow displacement
+    return cat(
+        [points, ones(*points.shape[:-1], 1, dtype=points.dtype, device=points.device)],
+        dim=-1,
+    )
 
 
 def homogenize_vectors(
@@ -15,7 +19,14 @@ def homogenize_vectors(
 ) -> Float[Tensor, "*batch dim+1"]:
     """Turn n-dimensional vectors into (n+1)-dimensional homogeneous vectors."""
 
-    raise NotImplementedError("This is your homework.")
+    # Homogenous vectors require fourth coordinate == 0 to avoid displacement
+    return cat(
+        [
+            points,
+            zeros(*points.shape[:-1], 1, dtype=points.dtype, device=points.device),
+        ],
+        dim=-1,
+    )
 
 
 def transform_rigid(
@@ -24,7 +35,7 @@ def transform_rigid(
 ) -> Float[Tensor, "*batch 4"]:
     """Apply a rigid-body transform to homogeneous points or vectors."""
 
-    raise NotImplementedError("This is your homework.")
+    return matmul(transform, xyz.unsqueeze(-1)).squeeze(-1)
 
 
 def transform_world2cam(
@@ -35,7 +46,7 @@ def transform_world2cam(
     3D camera coordinates.
     """
 
-    raise NotImplementedError("This is your homework.")
+    return transform_rigid(xyz, inverse(cam2world))
 
 
 def transform_cam2world(
@@ -46,7 +57,7 @@ def transform_cam2world(
     3D world coordinates.
     """
 
-    raise NotImplementedError("This is your homework.")
+    return transform_rigid(xyz, cam2world)
 
 
 def project(
@@ -55,4 +66,5 @@ def project(
 ) -> Float[Tensor, "*batch 2"]:
     """Project homogenized 3D points in camera coordinates to pixel coordinates."""
 
-    raise NotImplementedError("This is your homework.")
+    proj = matmul(intrinsics, xyz[..., :3].unsqueeze(-1)).squeeze(-1)
+    return proj[..., :2] / proj[..., 2:3]
