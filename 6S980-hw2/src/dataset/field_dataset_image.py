@@ -1,5 +1,8 @@
+import torch
+import torchvision.transforms as T
 from jaxtyping import Float
 from omegaconf import DictConfig
+from PIL import Image
 from torch import Tensor
 
 from .field_dataset import FieldDataset
@@ -10,7 +13,10 @@ class FieldDatasetImage(FieldDataset):
         """Load the image in cfg.path into memory here."""
 
         super().__init__(cfg)
-        raise NotImplementedError("This is your homework.")
+        # Load the image and convert to torch tensor
+        image = Image.open(cfg.path).convert("RGB")
+        self.image = T.ToTensor()(image).unsqueeze(0)  # Add batch dimension
+        self.image_size = self.image.shape[-2:]  # H, W
 
     def query(
         self,
@@ -24,7 +30,25 @@ class FieldDatasetImage(FieldDataset):
         parameter.
         """
 
-        raise NotImplementedError("This is your homework.")
+        # Map coordinates from [0, 1] to [-1, 1]
+        coordinates = 2.0 * coordinates - 1.0
+        
+        # Get the batch size
+        batch_size = coordinates.shape[0]
+
+        # Reshape coordinates to (N, H_out, W_out, 2). Since we're querying individual coordinates, H_out and W_out are both 1.
+        grid = coordinates.view(batch_size, 1, 1, 2)
+
+        # Replicate the image tensor to match the batch size of the grid
+        image_batch = self.image.repeat(batch_size, 1, 1, 1)
+        
+        # Use grid_sample to sample the image
+        sampled_colors = torch.nn.functional.grid_sample(image_batch, grid)
+        
+        # Remove singleton dimensions
+        sampled_colors = sampled_colors.squeeze(2).squeeze(2)
+        
+        return sampled_colors
 
     @property
     def d_coordinate(self) -> int:
@@ -38,4 +62,4 @@ class FieldDatasetImage(FieldDataset):
     def grid_size(self) -> tuple[int, ...]:
         """Return a grid size that corresponds to the image's shape."""
 
-        raise NotImplementedError("This is your homework.")
+        return self.image_size
