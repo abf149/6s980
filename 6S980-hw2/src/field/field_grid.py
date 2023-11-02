@@ -24,12 +24,15 @@ class FieldGrid(Field):
         super().__init__(cfg, d_coordinate, d_out)
         assert d_coordinate in (2, 3)
         side_length = cfg.side_length
-
+        self.side_length=side_length
         # Initialize the grid tensor based on dimensionality
+        inp=[]
         if d_coordinate == 2:
-            self.grid = torch.randn((side_length, side_length, d_out))
+            inp = torch.randn((1, d_out, side_length, side_length))
         elif d_coordinate == 3:
-            self.grid = torch.randn((side_length, side_length, side_length, d_out))
+            inp = torch.randn((1, d_out, side_length, side_length, side_length))
+        self.input = torch.nn.Parameter(inp)
+        self.d_coordinate=d_coordinate
 
     def forward(
         self,
@@ -38,26 +41,24 @@ class FieldGrid(Field):
         """Use torch.nn.functional.grid_sample to bilinearly sample from the image grid.
         Remember that your implementation must support either 2D and 3D queries,
         depending on what d_coordinate was during initialization.
+
         """
+        batch_size = coordinates.size(0)  # Obtain the batch size from the 'coordinates' tensor
 
         # We need to normalize the coordinates to the range [-1, 1] to use grid_sample
-        normalized_coordinates = (coordinates * 2) - 1
+        normalized_coordinates = coordinates*2 - 1
 
-        # The grid_sample expects a batch dimension for grid, add it
-        grid_batched = self.grid.unsqueeze(0) 
-
+        inp=[]
         if self.d_coordinate == 2:
-            # Change the coordinate shape to (B, H, W, 2) for 2D
-            normalized_coordinates = normalized_coordinates \
-                                        .view(*normalized_coordinates \
-                                        .shape[:-1], 1, 1, 2)
+            inp = self.input.expand(batch_size, self.input.size(1), self.input.size(2), self.input.size(3))
+            normalized_coordinates = normalized_coordinates.unsqueeze(1).unsqueeze(2)
         elif self.d_coordinate == 3:
-            # Change the coordinate shape to (B, D, H, W, 3) for 3D
-            normalized_coordinates = normalized_coordinates \
-                                        .view(*normalized_coordinates \
-                                        .shape[:-1], 1, 1, 1, 3)
+            inp = self.input.expand(batch_size, self.input.size(1), self.input.size(2), self.input.size(3), self.input.size(4))
+            normalized_coordinates = normalized_coordinates.unsqueeze(1).unsqueeze(2).unsqueeze(3)
 
         sampled_values = \
-            F.grid_sample(grid_batched, normalized_coordinates, align_corners=True)
+            F.grid_sample(inp,normalized_coordinates,align_corners=True)
 
-        return sampled_values.squeeze()
+        sampled_values = sampled_values.squeeze(-1).squeeze(-1)
+
+        return sampled_values
