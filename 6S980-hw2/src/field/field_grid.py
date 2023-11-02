@@ -1,3 +1,5 @@
+import torch
+import torch.nn.functional as F
 from jaxtyping import Float
 from omegaconf import DictConfig
 from torch import Tensor
@@ -21,7 +23,13 @@ class FieldGrid(Field):
         """
         super().__init__(cfg, d_coordinate, d_out)
         assert d_coordinate in (2, 3)
-        raise NotImplementedError("This is your homework.")
+        side_length = cfg.side_length
+
+        # Initialize the grid tensor based on dimensionality
+        if d_coordinate == 2:
+            self.grid = torch.randn((side_length, side_length, d_out))
+        elif d_coordinate == 3:
+            self.grid = torch.randn((side_length, side_length, side_length, d_out))
 
     def forward(
         self,
@@ -32,4 +40,24 @@ class FieldGrid(Field):
         depending on what d_coordinate was during initialization.
         """
 
-        raise NotImplementedError("This is your homework.")
+        # We need to normalize the coordinates to the range [-1, 1] to use grid_sample
+        normalized_coordinates = (coordinates * 2) - 1
+
+        # The grid_sample expects a batch dimension for grid, add it
+        grid_batched = self.grid.unsqueeze(0) 
+
+        if self.d_coordinate == 2:
+            # Change the coordinate shape to (B, H, W, 2) for 2D
+            normalized_coordinates = normalized_coordinates \
+                                        .view(*normalized_coordinates \
+                                        .shape[:-1], 1, 1, 2)
+        elif self.d_coordinate == 3:
+            # Change the coordinate shape to (B, D, H, W, 3) for 3D
+            normalized_coordinates = normalized_coordinates \
+                                        .view(*normalized_coordinates \
+                                        .shape[:-1], 1, 1, 1, 3)
+
+        sampled_values = \
+            F.grid_sample(grid_batched, normalized_coordinates, align_corners=True)
+
+        return sampled_values.squeeze()
