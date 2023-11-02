@@ -1,7 +1,9 @@
+import torch.nn as nn
 from jaxtyping import Float
 from omegaconf import DictConfig
 from torch import Tensor
 
+from ..components.positional_encoding import PositionalEncoding
 from .field import Field
 
 
@@ -24,7 +26,33 @@ class FieldMLP(Field):
         """
 
         super().__init__(cfg, d_coordinate, d_out)
-        raise NotImplementedError("This is your homework.")
+
+        layers = []
+
+        # Input layer
+        if cfg.positional_encoding_octaves is None:
+            # No positional encoding
+            # Layer 1 is Linear, d_coordinate -> d_hidden
+            layers.append(nn.Linear(d_coordinate, cfg.d_hidden))
+            layers.append(nn.ReLU())
+        else:
+            # Layer 1a is positional encoding, from d_coordinate -> pe.d_out==d_pe
+            # Layer 1b is Linear, d_pe -> d_hidden
+            pe=PositionalEncoding(cfg.positional_encoding_octaves)
+            d_pe=pe.d_out(d_coordinate)
+            layers.append(pe)
+            layers.append(nn.Linear(d_pe, cfg.d_hidden))
+            layers.append(nn.ReLU())
+
+        # Hidden layers
+        for _ in range(cfg.num_hidden_layers):
+            layers.append(nn.Linear(cfg.d_hidden, cfg.d_hidden))
+            layers.append(nn.ReLU())
+
+        # Output layer
+        layers.append(nn.Linear(cfg.d_hidden, d_out))
+
+        self.mlp = nn.Sequential(*layers)
 
     def forward(
         self,
@@ -32,4 +60,4 @@ class FieldMLP(Field):
     ) -> Float[Tensor, "batch output_dim"]:
         """Evaluate the MLP at the specified coordinates."""
 
-        raise NotImplementedError("This is your homework.")
+        return self.mlp(coordinates)

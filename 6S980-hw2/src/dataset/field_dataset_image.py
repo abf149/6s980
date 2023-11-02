@@ -36,13 +36,16 @@ class FieldDatasetImage(FieldDataset):
         # Get the batch size
         batch_size = coordinates.shape[0]
 
-        # Reshape coordinates to (N, H_out, W_out, 2). Since we're querying individual coordinates, H_out and W_out are both 1.
+        # Reshape coordinates to (N, H_out, W_out, 2). Since we're querying individual 
+        # coordinates, H_out and W_out are both 1.
         grid = coordinates.view(batch_size, 1, 1, 2)
 
         # Replicate the image tensor to match the batch size of the grid
         image_batch = self.image.repeat(batch_size, 1, 1, 1)
         
         # Use grid_sample to sample the image
+        device = grid.device
+        image_batch = image_batch.to(device)        
         sampled_colors = torch.nn.functional.grid_sample(image_batch, grid)
         
         # Remove singleton dimensions
